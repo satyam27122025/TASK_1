@@ -1,7 +1,3 @@
-# Internship Assignment - Microservices System
-
-Hi! This is my submission for the microservices internship assignment.
-
 I built a microservices project with three main parts:
 1. API Gateway (FastAPI) - Runs on port 8000
 2. User Service (Django DRF) - Runs on port 8001
