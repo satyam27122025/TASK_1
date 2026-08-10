@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  nats:
+    image: nats:2.10-alpine
+    container_name: task-nats
+    command: ["-js", "-c", "/etc/nats/nats.conf"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - ./nats.conf:/etc/nats/nats.conf:ro
+      - nats_data:/nats-data
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "4222"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: task-user-service
+    ports:
+      - "8001:8001"
+    environment:
+      - SECRET_KEY=prod-user-service-secret
+      - DEBUG=True
+      - ALLOWED_HOSTS=*
+      - NATS_URL=nats://app:appsecret@nats:4222
+      - NATS_USER=app
+      - NATS_PASSWORD=appsecret
+      - JWT_SECRET_KEY=shared-super-secret-jwt-key-2026
+      - JWT_ALGORITHM=HS256
+    depends_on:
+      nats:
+        condition: service_healthy
+    volumes:
+      - user_db:/app
+
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: task-notification-service
+    ports:
+      - "8002:8002"
+    environment:
+      - SECRET_KEY=prod-notification-service-secret
+      - DEBUG=True
+      - ALLOWED_HOSTS=*
+      - NATS_URL=nats://app:appsecret@nats:4222
+      - NATS_USER=app
+      - NATS_PASSWORD=appsecret
+    depends_on:
+      nats:
+        condition: service_healthy
+    volumes:
+      - notification_db:/app
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: task-api-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - USER_SERVICE_URL=http://user-service:8001
+      - JWT_SECRET_KEY=shared-super-secret-jwt-key-2026
+      - JWT_ALGORITHM=HS256
+      - RATE_LIMIT_PER_MINUTE=60
+    depends_on:
+      - user-service
+
+volumes:
+  nats_data:
+  user_db:
+  notification_db:
